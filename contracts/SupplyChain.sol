@@ -12,10 +12,12 @@ contract SupplyChain {
   address owner;
 
   /* Add a variable called skuCount to track the most recent sku # */
+  uint skuCount;
 
   /* Add a line that creates a public mapping that maps the SKU (a number) to an Item.
      Call this mappings items
   */
+  mapping (uint => Item) public items;
 
   /* Add a line that creates an enum called State. This should have 4 states
     ForSale
@@ -24,20 +26,43 @@ contract SupplyChain {
     Received
     (declaring them in this order is important for testing)
   */
-
+  enum State {
+    ForSale,
+    Sold,
+    Shipped,
+    Received
+  }
   /* Create a struct named Item.
     Here, add a name, sku, price, state, seller, and buyer
     We've left you to figure out what the appropriate types are,
     if you need help you can ask around :)
     Be sure to add "payable" to addresses that will be handling value transfer
   */
-
+  struct Item {
+    string name;
+    uint sku;
+    uint price;
+    State state;
+    address payable seller;
+    address payable buyer;
+  }
   /* Create 4 events with the same name as each possible State (see above)
     Prefix each event with "Log" for clarity, so the forSale event will be called "LogForSale"
     Each event should accept one argument, the sku */
+  // Log when an item is available for sale
+  event LogForSale(uint sku);
+  // Log when an item is sold
+  event LogSold(uint sku);
+  // Log when a sold item is shipped
+  event LogShipped(uint sku);
+  // Log when a shipped ite has been received
+  event LogReceived(uint sku);
 
 /* Create a modifer that checks if the msg.sender is the owner of the contract */
-
+  // Check if the sender of the transaction is the contract owner
+  modifier checkSender () {
+    require(msg.sender == owner); _;
+  }
   modifier verifyCaller (address _address) { require (msg.sender == _address); _;}
 
   modifier paidEnough(uint _price) { require(msg.value >= _price); _;}
@@ -60,15 +85,35 @@ contract SupplyChain {
    */
   
   
-  /// modifier forSale
-  /// modifier sold
-  /// modifier shipped
-  /// modifier received
+  modifier forSale (uint sku) {
+    // Check that the current item is for sale. The name of the item must be non-zero
+    require(items[sku].price > 0 && items[sku].state == State.ForSale, 'Only registered products are for sale');
+    _;
+  }
+  modifier sold (uint sku) {
+    // Confirm that the item represented with the sku is already sold
+    require(items[sku].state == State.Sold, 'Item has not been sold');
+    _;
+  }
+  modifier shipped (uint sku) {
+    // CHeck that the item has been shipped to the buyer
+    require(items[sku].state == State.Shipped, 'This item has not been shipped yet');
+    _;
+  }
+  modifier received (uint sku) {
+    // Confirm that this items have been received by the buyer
+    require(items[sku].state == State.Received, 'This item has not yet been received by the buyer');
+    _;
+  }
 
 
-  constructor() public {
+  constructor() {
     /* Here, set the owner as the person who instantiated the contract
        and set your skuCount to 0. */
+    // Set the owner of the contract
+    owner = msg.sender;
+    // Set the sku count to 0
+    skuCount = 0;
   }
 
   function addItem(string memory _name, uint _price) public returns(bool){
@@ -84,24 +129,51 @@ contract SupplyChain {
     if the buyer paid enough, and check the value after the function is called to make sure the buyer is
     refunded any excess ether sent. Remember to call the event associated with this function!*/
 
-  function buyItem(uint sku)
+  function buyItem (uint sku)
     public
-  {}
+    payable
+    forSale (sku)
+    paidEnough (msg.value)
+    checkValue (sku)
+  {
+    // Let's set this item state to sold first
+    items[sku].state = State.Sold;
+    // Let's set the buyer of the item
+    items[sku].buyer = msg.sender;
+    // Let's then transfer the amount to the seller
+    items[sku].seller.transfer(msg.value);
+    // Log this event
+    emit LogSold (sku);
+  }
 
   /* Add 2 modifiers to check if the item is sold already, and that the person calling this function
   is the seller. Change the state of the item to shipped. Remember to call the event associated with this function!*/
   function shipItem(uint sku)
     public
-  {}
+    sold (sku)
+    verifyCaller (items[sku].seller)
+  {
+    // Set the item's state to shipped
+    items[sku].state = State.Shipped;
+    // Log this event
+    emit LogShipped (sku);
+  }
 
   /* Add 2 modifiers to check if the item is shipped already, and that the person calling this function
   is the buyer. Change the state of the item to received. Remember to call the event associated with this function!*/
   function receiveItem(uint sku)
     public
-  {}
+    shipped (sku)
+    verifyCaller (items[sku].buyer)
+  {
+    // Let's set the item as received
+    items[sku].state = State.Received;
+    // Log this event
+    emit LogReceived (sku);
+  }
 
   /* We have these functions completed so we can run tests, just ignore it :) */
-  /*
+
   function fetchItem(uint _sku) public view returns (string memory name, uint sku, uint price, uint state, address seller, address buyer) {
     name = items[_sku].name;
     sku = items[_sku].sku;
@@ -110,6 +182,6 @@ contract SupplyChain {
     seller = items[_sku].seller;
     buyer = items[_sku].buyer;
     return (name, sku, price, state, seller, buyer);
-  } */
+  }
 
 }
