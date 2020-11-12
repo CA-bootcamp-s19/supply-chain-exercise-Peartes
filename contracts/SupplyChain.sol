@@ -160,7 +160,7 @@ contract SupplyChain {
         // Let's set the buyer of the item
         items[sku].buyer = msg.sender;
         // Let's then transfer the amount to the seller
-        items[sku].seller.transfer(msg.value);
+        items[sku].seller.transfer(items[sku].price);
         // Log this event
         emit LogSold(sku);
     }
